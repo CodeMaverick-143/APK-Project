@@ -26,7 +26,7 @@ Students, young professionals, or anyone looking for a fun and motivating way to
 
 7. **Technology Stack**  
 - Frontend: React Native
-- Storage: Browser localStorage for data persistence  
+- Storage: Supabase or Firebase
 - Animations: Libraries like animate.css or canvas-confetti  
 - Sounds: Howler.js or simple audio files for effects
 
