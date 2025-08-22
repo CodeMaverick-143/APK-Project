@@ -14,7 +14,7 @@ export default function App() {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.heading}>Slate</Text>
+      <Text style={styles.heading}>Slate....</Text>
 
       <TextInput
         style={styles.input}
