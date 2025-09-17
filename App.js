@@ -13,6 +13,7 @@ import {
   Alert
 } from 'react-native';
 import { useState } from 'react';
+import { Feather, MaterialIcons, Ionicons } from '@expo/vector-icons';
 
 const COLORS = {
   primary: '#007bff',
@@ -30,14 +31,14 @@ const TaskItem = ({ task, onToggle, onDelete }) => {
     <View style={styles.taskContainer}>
       <TouchableOpacity onPress={onToggle} style={styles.taskWrapper}>
         <View style={[styles.checkbox, task.completed && styles.checkboxChecked]}>
-          {task.completed && <Text style={styles.checkmark}>✓</Text>}
+          {task.completed && <Feather name="check" size={16} color={COLORS.white} />}
         </View>
         <Text style={[styles.taskText, task.completed && styles.taskTextCompleted]}>
           {task.text}
         </Text>
       </TouchableOpacity>
       <TouchableOpacity onPress={onDelete} style={styles.deleteButton}>
-        <Text style={styles.deleteButtonText}>🗑️</Text>
+        <MaterialIcons name="delete-outline" size={24} color={COLORS.danger} />
       </TouchableOpacity>
     </View>
   );
@@ -81,7 +82,8 @@ export default function App() {
 
   const renderEmptyComponent = () => (
     <View style={styles.emptyContainer}>
-      <Text style={styles.emptyText}>No tasks yet! 🙃</Text>
+      <Ionicons name="clipboard-outline" size={48} color={COLORS.gray} />
+      <Text style={styles.emptyText}>No tasks yet!</Text>
       <Text style={styles.emptySubText}>Add a task to get started.</Text>
     </View>
   );
@@ -94,7 +96,10 @@ export default function App() {
       >
         <StatusBar style="dark" />
         <View style={styles.header}>
-          <Text style={styles.heading}>📝 Slate</Text>
+          <View style={{ flexDirection: 'row', justifyContent: 'center', alignItems: 'center' }}>
+            <Feather name="edit-3" size={28} color={COLORS.dark} style={{ marginRight: 8 }} />
+            <Text style={styles.heading}>Slate</Text>
+          </View>
           <Text style={styles.counter}>
             {tasks.filter(t => t.completed).length} / {tasks.length} Done
           </Text>
@@ -121,10 +126,12 @@ export default function App() {
           />
           <View style={styles.buttonRow}>
             <TouchableOpacity style={[styles.button, styles.clearButton]} onPress={clearAll}>
-              <Text style={[styles.buttonText, styles.clearButtonText]}>Clear All</Text>
+              <MaterialIcons name="delete-sweep" size={20} color={COLORS.danger} />
+              <Text style={[styles.buttonText, styles.clearButtonText]}> Clear All</Text>
             </TouchableOpacity>
             <TouchableOpacity style={[styles.button, styles.addButton]} onPress={addTask}>
-              <Text style={styles.buttonText}>Add Task</Text>
+              <Feather name="plus-circle" size={20} color={COLORS.white} />
+              <Text style={styles.buttonText}> Add Task</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -190,6 +197,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     flex: 1,
     marginHorizontal: 5,
+    flexDirection: 'row',
+    justifyContent: 'center'
   },
   buttonText: {
     color: COLORS.white,
@@ -238,11 +247,6 @@ const styles = StyleSheet.create({
   checkboxChecked: {
     backgroundColor: COLORS.primary,
   },
-  checkmark: {
-    color: COLORS.white,
-    fontSize: 14,
-    fontWeight: 'bold'
-  },
   taskText: {
     fontSize: 16,
     color: COLORS.dark,
@@ -256,9 +260,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 5,
   },
-  deleteButtonText: {
-    fontSize: 20,
-  },
   emptyContainer: {
     flex: 1,
     justifyContent: 'center',
@@ -269,6 +270,7 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '600',
     color: COLORS.gray,
+    marginTop: 12,
   },
   emptySubText: {
     fontSize: 14,
