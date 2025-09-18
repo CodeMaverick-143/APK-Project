@@ -3,59 +3,55 @@ import {
   StyleSheet,
   Text,
   View,
-  TextInput,
-  TouchableOpacity,
   FlatList,
   SafeAreaView,
-  KeyboardAvoidingView,
-  Platform,
-  Keyboard,
-  Alert
+  TouchableOpacity,
+  Alert,
 } from 'react-native';
-import { useState } from 'react';
-import { Feather, MaterialIcons, Ionicons } from '@expo/vector-icons';
+import { useState, useEffect } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Feather, Ionicons, MaterialIcons } from '@expo/vector-icons';
 
-const COLORS = {
-  primary: '#007bff',
-  primaryMuted: '#e7f3ff',
-  danger: '#dc3545',
-  dangerMuted: '#f8d7da',
-  light: '#f8f9fa',
-  dark: '#343a40',
-  gray: '#6c757d',
-  white: '#ffffff',
-};
-
-const TaskItem = ({ task, onToggle, onDelete }) => {
-  return (
-    <View style={styles.taskContainer}>
-      <TouchableOpacity onPress={onToggle} style={styles.taskWrapper}>
-        <View style={[styles.checkbox, task.completed && styles.checkboxChecked]}>
-          {task.completed && <Feather name="check" size={16} color={COLORS.white} />}
-        </View>
-        <Text style={[styles.taskText, task.completed && styles.taskTextCompleted]}>
-          {task.text}
-        </Text>
-      </TouchableOpacity>
-      <TouchableOpacity onPress={onDelete} style={styles.deleteButton}>
-        <MaterialIcons name="delete-outline" size={24} color={COLORS.danger} />
-      </TouchableOpacity>
-    </View>
-  );
-};
+import TaskItem from './components/TaskItem';
+import AddTaskModal from './components/AddTaskModal';
+import EditTaskModal from './components/EditTaskModal';
+import { COLORS } from './constants/Colors';
+import { STORAGE_KEY } from './constants/Storage';
 
 export default function App() {
-  const [task, setTask] = useState('');
   const [tasks, setTasks] = useState([]);
+  const [modalVisible, setModalVisible] = useState(false);
+  const [editModalVisible, setEditModalVisible] = useState(false);
+  const [taskToEdit, setTaskToEdit] = useState(null);
 
-  const addTask = () => {
-    if (task.trim() === '') {
-      Alert.alert('Empty Task', 'Please enter a task before adding.');
-      return;
-    }
-    setTasks([...tasks, { id: Date.now().toString(), text: task, completed: false }]);
-    setTask('');
-    Keyboard.dismiss();
+  useEffect(() => {
+    const loadTasks = async () => {
+      try {
+        const storedTasks = await AsyncStorage.getItem(STORAGE_KEY);
+        if (storedTasks) {
+          setTasks(JSON.parse(storedTasks));
+        }
+      } catch (error) {
+        console.error("Failed to load tasks.", error);
+      }
+    };
+    loadTasks();
+  }, []);
+
+  useEffect(() => {
+    const saveTasks = async () => {
+      try {
+        await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(tasks));
+      } catch (error) {
+        console.error("Failed to save tasks.", error);
+      }
+    };
+    saveTasks();
+  }, [tasks]);
+
+  const addTask = (task) => {
+    setTasks([...tasks, task]);
+    setModalVisible(false);
   };
 
   const toggleTask = (id) => {
@@ -64,6 +60,19 @@ export default function App() {
 
   const deleteTask = (id) => {
     setTasks(tasks.filter(t => t.id !== id));
+  };
+
+  const startEditTask = (task) => {
+    setTaskToEdit(task);
+    setEditModalVisible(true);
+  };
+
+  const saveEditedTask = (editedTask) => {
+    setTasks(tasks.map(task =>
+      task.id === editedTask.id ? editedTask : task
+    ));
+    setEditModalVisible(false);
+    setTaskToEdit(null);
   };
 
   const clearAll = () => {
@@ -80,201 +89,120 @@ export default function App() {
     }
   };
 
+  const sortedTasks = [...tasks].sort((a, b) => {
+    const order = { High: 1, Medium: 2, Low: 3 };
+    const priorityComparison = order[a.priority] - order[b.priority];
+    if (priorityComparison !== 0) return priorityComparison;
+    return new Date(a.dueDate) - new Date(b.dueDate);
+  });
+
   const renderEmptyComponent = () => (
     <View style={styles.emptyContainer}>
-      <Ionicons name="clipboard-outline" size={48} color={COLORS.gray} />
-      <Text style={styles.emptyText}>No tasks yet!</Text>
-      <Text style={styles.emptySubText}>Add a task to get started.</Text>
+      <Ionicons name="sunny-outline" size={64} color={COLORS.gray} />
+      <Text style={styles.emptyText}>All tasks completed!</Text>
+      <Text style={styles.emptySubText}>Add a new task to get started.</Text>
     </View>
   );
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={styles.container}
-      >
-        <StatusBar style="dark" />
+      <StatusBar style="dark" />
+      <View style={styles.container}>
         <View style={styles.header}>
-          <View style={{ flexDirection: 'row', justifyContent: 'center', alignItems: 'center' }}>
-            <Feather name="edit-3" size={28} color={COLORS.dark} style={{ marginRight: 8 }} />
-            <Text style={styles.heading}>Slate</Text>
+          <View>
+            <Text style={styles.heading}>Today's Slate</Text>
+            <Text style={styles.counter}>
+              {tasks.filter(t => !t.completed).length} tasks remaining
+            </Text>
           </View>
-          <Text style={styles.counter}>
-            {tasks.filter(t => t.completed).length} / {tasks.length} Done
-          </Text>
+          <TouchableOpacity onPress={clearAll}>
+            <MaterialIcons name="delete-sweep" size={28} color={COLORS.gray} />
+          </TouchableOpacity>
         </View>
 
         <FlatList
           style={styles.list}
-          data={tasks}
+          data={sortedTasks}
           keyExtractor={(item) => item.id}
           renderItem={({ item }) => (
-            <TaskItem task={item} onToggle={() => toggleTask(item.id)} onDelete={() => deleteTask(item.id)} />
+            <TaskItem
+              task={item}
+              onToggle={() => toggleTask(item.id)}
+              onDelete={() => deleteTask(item.id)}
+              onEdit={() => startEditTask(item)}
+            />
           )}
           ListEmptyComponent={renderEmptyComponent}
-          contentContainerStyle={{ flexGrow: 1 }}
+          contentContainerStyle={{ flexGrow: 1, paddingBottom: 80 }}
         />
 
-        <View style={styles.footer}>
-          <TextInput
-            style={styles.input}
-            placeholder="What's next on your list?"
-            placeholderTextColor={COLORS.gray}
-            value={task}
-            onChangeText={setTask}
-          />
-          <View style={styles.buttonRow}>
-            <TouchableOpacity style={[styles.button, styles.clearButton]} onPress={clearAll}>
-              <MaterialIcons name="delete-sweep" size={20} color={COLORS.danger} />
-              <Text style={[styles.buttonText, styles.clearButtonText]}> Clear All</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={[styles.button, styles.addButton]} onPress={addTask}>
-              <Feather name="plus-circle" size={20} color={COLORS.white} />
-              <Text style={styles.buttonText}> Add Task</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </KeyboardAvoidingView>
+        <TouchableOpacity
+          style={styles.fab}
+          onPress={() => setModalVisible(true)}
+        >
+          <Feather name="plus" size={28} color={COLORS.white} />
+        </TouchableOpacity>
+      </View>
+
+      <AddTaskModal
+        visible={modalVisible}
+        onClose={() => setModalVisible(false)}
+        onSave={addTask}
+      />
+
+      {taskToEdit && (
+        <EditTaskModal
+          visible={editModalVisible}
+          onClose={() => setEditModalVisible(false)}
+          onSave={saveEditedTask}
+          task={taskToEdit}
+        />
+      )}
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: COLORS.light,
-  },
-  container: {
-    flex: 1,
-    paddingHorizontal: 20,
-    backgroundColor: COLORS.light,
-  },
+  safeArea: { flex: 1, backgroundColor: COLORS.light },
+  container: { flex: 1, paddingHorizontal: 20, backgroundColor: COLORS.light },
   header: {
     paddingTop: 20,
     paddingBottom: 15,
-    borderBottomWidth: 1,
-    borderBottomColor: '#e0e0e0'
-  },
-  heading: {
-    fontSize: 32,
-    fontWeight: 'bold',
-    color: COLORS.dark,
-    textAlign: 'center',
-  },
-  counter: {
-    fontSize: 16,
-    color: COLORS.gray,
-    textAlign: 'center',
-    marginTop: 8,
-  },
-  list: {
-    flex: 1,
-    marginTop: 10,
-  },
-  footer: {
-    paddingVertical: 10,
-    borderTopWidth: 1,
-    borderTopColor: '#e0e0e0',
-  },
-  input: {
-    backgroundColor: COLORS.white,
-    borderWidth: 1,
-    borderColor: '#ced4da',
-    paddingHorizontal: 15,
-    paddingVertical: 12,
-    borderRadius: 12,
-    fontSize: 16,
-    marginBottom: 10,
-  },
-  buttonRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-  },
-  button: {
-    paddingVertical: 12,
-    borderRadius: 12,
     alignItems: 'center',
-    flex: 1,
-    marginHorizontal: 5,
-    flexDirection: 'row',
-    justifyContent: 'center'
   },
-  buttonText: {
-    color: COLORS.white,
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  addButton: {
+  heading: { fontSize: 32, fontWeight: 'bold', color: COLORS.dark },
+  counter: { fontSize: 16, color: COLORS.gray, marginTop: 4 },
+  list: { flex: 1, marginTop: 10 },
+  fab: {
+    position: 'absolute',
+    bottom: 30,
+    right: 20,
+    width: 60,
+    height: 60,
+    borderRadius: 30,
     backgroundColor: COLORS.primary,
-  },
-  clearButton: {
-    backgroundColor: COLORS.white,
-    borderWidth: 1,
-    borderColor: COLORS.danger,
-  },
-  clearButtonText: {
-    color: COLORS.danger,
-  },
-  taskContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: COLORS.white,
-    padding: 15,
-    marginVertical: 6,
-    borderRadius: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  taskWrapper: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  checkbox: {
-    width: 24,
-    height: 24,
-    borderRadius: 6,
-    borderWidth: 2,
-    borderColor: COLORS.primary,
-    marginRight: 15,
     justifyContent: 'center',
     alignItems: 'center',
-  },
-  checkboxChecked: {
-    backgroundColor: COLORS.primary,
-  },
-  taskText: {
-    fontSize: 16,
-    color: COLORS.dark,
-    flexShrink: 1,
-  },
-  taskTextCompleted: {
-    textDecorationLine: 'line-through',
-    color: COLORS.gray,
-  },
-  deleteButton: {
-    paddingHorizontal: 10,
-    paddingVertical: 5,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 8,
   },
   emptyContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
     padding: 20,
+    marginTop: -50,
   },
   emptyText: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: '600',
-    color: COLORS.gray,
-    marginTop: 12,
+    color: COLORS.dark,
+    marginTop: 16,
   },
-  emptySubText: {
-    fontSize: 14,
-    color: COLORS.gray,
-    marginTop: 8,
-  },
+  emptySubText: { fontSize: 15, color: COLORS.gray, marginTop: 8 },
 });

@@ -1,0 +1,1 @@
+export const STORAGE_KEY = "@todo_list_tasks";
