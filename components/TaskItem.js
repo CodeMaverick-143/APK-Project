@@ -1,7 +1,10 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
-import { Feather, MaterialIcons } from '@expo/vector-icons';
+import { View, Text, StyleSheet, TouchableOpacity, Animated as RNAnimated } from 'react-native';
+import { Feather, MaterialIcons, AntDesign } from '@expo/vector-icons';
 import { COLORS } from '../constants/Colors';
+import { Swipeable } from 'react-native-gesture-handler';
+import Animated, { useAnimatedStyle, withTiming, withSpring, useSharedValue } from 'react-native-reanimated';
+import * as Haptics from 'expo-haptics';
 
 const priorityColors = {
   High: COLORS.danger,
@@ -17,28 +20,130 @@ const Pill = ({ text, color }) => (
 
 const TaskItem = ({ task, onToggle, onDelete, onEdit }) => {
   const priorityColor = priorityColors[task.priority] || COLORS.gray;
-
+  const scale = useSharedValue(1);
+  
+  // Animation for task press
+  const animatedStyle = useAnimatedStyle(() => {
+    return {
+      transform: [{ scale: scale.value }]
+    };
+  });
+  
+  const onTaskPress = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    scale.value = withSpring(0.95, { damping: 10 }, () => {
+      scale.value = withSpring(1);
+    });
+    onToggle();
+  };
+  
+  const onLongPressTask = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    scale.value = withSpring(0.98);
+    onEdit();
+  };
+  
+  // Render right swipe actions (delete)
+  const renderRightActions = (progress, dragX) => {
+    const trans = dragX.interpolate({
+      inputRange: [-100, 0],
+      outputRange: [0, 100],
+      extrapolate: 'clamp',
+    });
+    
+    // Trigger haptic feedback when swipe reaches threshold
+    if (dragX._value < -50) {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }
+    
+    return (
+      <RNAnimated.View style={[styles.rightAction, {
+        transform: [{ translateX: trans }],
+      }]}>
+        <TouchableOpacity 
+          onPress={() => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+            onDelete();
+          }} 
+          style={styles.actionButton}
+        >
+          <MaterialIcons name="delete" size={24} color={COLORS.white} />
+          <Text style={styles.actionText}>Delete</Text>
+        </TouchableOpacity>
+      </RNAnimated.View>
+    );
+  };
+  
+  // Render left swipe actions (toggle completion)
+  const renderLeftActions = (progress, dragX) => {
+    const trans = dragX.interpolate({
+      inputRange: [0, 100],
+      outputRange: [-100, 0],
+      extrapolate: 'clamp',
+    });
+    
+    // Trigger haptic feedback when swipe reaches threshold
+    if (dragX._value > 50) {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }
+    
+    return (
+      <RNAnimated.View style={[styles.leftAction, {
+        transform: [{ translateX: trans }],
+        backgroundColor: task.completed ? COLORS.warning : COLORS.primary,
+      }]}>
+        <TouchableOpacity 
+          onPress={() => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+            onToggle();
+          }} 
+          style={styles.actionButton}
+        >
+          {task.completed ? (
+            <>
+              <AntDesign name="reload1" size={24} color={COLORS.white} />
+              <Text style={styles.actionText}>Undo</Text>
+            </>
+          ) : (
+            <>
+              <Feather name="check" size={24} color={COLORS.white} />
+              <Text style={styles.actionText}>Complete</Text>
+            </>
+          )}
+        </TouchableOpacity>
+      </RNAnimated.View>
+    );
+  };
+  
   return (
-    <TouchableOpacity onLongPress={onEdit} style={styles.taskContainer}>
-      <View style={[styles.priorityIndicator, { backgroundColor: priorityColor }]} />
-      <TouchableOpacity onPress={onToggle} style={styles.checkboxContainer}>
-        <View style={[styles.checkbox, task.completed && styles.checkboxChecked]}>
-          {task.completed && <Feather name="check" size={16} color={COLORS.white} />}
-        </View>
-      </TouchableOpacity>
-      <View style={styles.taskDetails}>
-        <Text style={[styles.taskText, task.completed && styles.taskTextCompleted]}>
-          {task.text}
-        </Text>
-        <View style={styles.metaContainer}>
-          <Pill text={task.category} color={COLORS.primaryMuted} />
-          {task.dueDate && <Pill text={new Date(task.dueDate).toLocaleDateString()} color={COLORS.successMuted} />}
-        </View>
-      </View>
-      <TouchableOpacity onPress={onDelete} style={styles.deleteButton}>
-        <MaterialIcons name="delete-outline" size={24} color={COLORS.gray} />
-      </TouchableOpacity>
-    </TouchableOpacity>
+    <Swipeable
+      renderRightActions={renderRightActions}
+      renderLeftActions={renderLeftActions}
+      friction={2}
+      overshootFriction={8}
+    >
+      <Animated.View style={[styles.taskContainer, animatedStyle]}>
+        <View style={[styles.priorityIndicator, { backgroundColor: priorityColor }]} />
+        <TouchableOpacity onPress={onTaskPress} style={styles.checkboxContainer}>
+          <View style={[styles.checkbox, task.completed && styles.checkboxChecked]}>
+            {task.completed && <Feather name="check" size={16} color={COLORS.white} />}
+          </View>
+        </TouchableOpacity>
+        <TouchableOpacity 
+          style={styles.taskDetails}
+          onLongPress={onLongPressTask}
+          activeOpacity={0.7}
+        >
+          <Text style={[styles.taskText, task.completed && styles.taskTextCompleted]}>
+            {task.text}
+          </Text>
+          <View style={styles.metaContainer}>
+            <Pill text={task.category} color={COLORS.primaryMuted} />
+            {task.dueDate && <Pill text={new Date(task.dueDate).toLocaleDateString()} color={COLORS.successMuted} />}
+          </View>
+        </TouchableOpacity>
+      </Animated.View>
+    </Swipeable>
   );
 };
 
@@ -55,6 +160,33 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 2,
     overflow: 'hidden',
+  },
+  rightAction: {
+    backgroundColor: COLORS.danger,
+    justifyContent: 'center',
+    alignItems: 'flex-end',
+    flex: 1,
+    borderRadius: 12,
+    marginVertical: 6,
+  },
+  leftAction: {
+    backgroundColor: COLORS.primary,
+    justifyContent: 'center',
+    alignItems: 'flex-start',
+    flex: 1,
+    borderRadius: 12,
+    marginVertical: 6,
+  },
+  actionButton: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 15,
+    width: 100,
+  },
+  actionText: {
+    color: COLORS.white,
+    fontWeight: '600',
+    marginTop: 4,
   },
   priorityIndicator: {
     width: 6,

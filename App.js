@@ -3,18 +3,20 @@ import {
   StyleSheet,
   Text,
   View,
-  FlatList,
   SafeAreaView,
   TouchableOpacity,
   Alert,
 } from 'react-native';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Feather, Ionicons, MaterialIcons } from '@expo/vector-icons';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import * as Notifications from 'expo-notifications';
 
-import TaskItem from './components/TaskItem';
+import DraggableTaskList from './components/DraggableTaskList';
 import AddTaskModal from './components/AddTaskModal';
 import EditTaskModal from './components/EditTaskModal';
+import NotificationManager from './utils/NotificationManager';
 import { COLORS } from './constants/Colors';
 import { STORAGE_KEY } from './constants/Storage';
 
@@ -23,6 +25,9 @@ export default function App() {
   const [modalVisible, setModalVisible] = useState(false);
   const [editModalVisible, setEditModalVisible] = useState(false);
   const [taskToEdit, setTaskToEdit] = useState(null);
+  const [notificationPermission, setNotificationPermission] = useState(false);
+  const notificationListener = useRef();
+  const responseListener = useRef();
 
   useEffect(() => {
     const loadTasks = async () => {
@@ -36,6 +41,35 @@ export default function App() {
       }
     };
     loadTasks();
+    
+
+    NotificationManager.requestPermissions().then(granted => {
+      setNotificationPermission(granted);
+    });
+    
+
+    notificationListener.current = Notifications.addNotificationReceivedListener(notification => {
+      const taskId = notification.request.content.data.taskId;
+      if (taskId) {
+        console.log('Received notification for task:', taskId);
+      }
+    });
+    
+    responseListener.current = Notifications.addNotificationResponseReceivedListener(response => {
+      const taskId = response.notification.request.content.data.taskId;
+      if (taskId) {
+
+        const task = tasks.find(t => t.id === taskId);
+        if (task) {
+          startEditTask(task);
+        }
+      }
+    });
+    
+    return () => {
+      Notifications.removeNotificationSubscription(notificationListener.current);
+      Notifications.removeNotificationSubscription(responseListener.current);
+    };
   }, []);
 
   useEffect(() => {
@@ -49,16 +83,54 @@ export default function App() {
     saveTasks();
   }, [tasks]);
 
-  const addTask = (task) => {
+  const addTask = async (task) => {
     setTasks([...tasks, task]);
     setModalVisible(false);
+    
+
+    if (notificationPermission && task.dueDate) {
+      const notificationId = await NotificationManager.scheduleTaskReminder(task);
+      if (notificationId) {
+
+        task.notificationId = notificationId;
+      }
+    }
   };
 
-  const toggleTask = (id) => {
-    setTasks(tasks.map(t => t.id === id ? { ...t, completed: !t.completed } : t));
+  const toggleTask = async (id) => {
+    const taskIndex = tasks.findIndex(t => t.id === id);
+    if (taskIndex === -1) return;
+    
+    const task = tasks[taskIndex];
+    const updatedTask = { ...task, completed: !task.completed };
+    
+    const updatedTasks = [...tasks];
+    updatedTasks[taskIndex] = updatedTask;
+    setTasks(updatedTasks);
+    
+    if (updatedTask.completed) {
+      if (updatedTask.notificationId) {
+        await NotificationManager.cancelNotification(updatedTask.notificationId);
+      }
+      
+      if (notificationPermission) {
+        await NotificationManager.showTaskCompletedNotification(updatedTask);
+      }
+    } else if (notificationPermission && updatedTask.dueDate) {
+      const notificationId = await NotificationManager.scheduleTaskReminder(updatedTask);
+      if (notificationId) {
+        updatedTask.notificationId = notificationId;
+        updatedTasks[taskIndex] = updatedTask;
+        setTasks(updatedTasks);
+      }
+    }
   };
 
-  const deleteTask = (id) => {
+  const deleteTask = async (id) => {
+    const taskToDelete = tasks.find(t => t.id === id);
+    if (taskToDelete && taskToDelete.notificationId) {
+      await NotificationManager.cancelNotification(taskToDelete.notificationId);
+    }
     setTasks(tasks.filter(t => t.id !== id));
   };
 
@@ -67,10 +139,29 @@ export default function App() {
     setEditModalVisible(true);
   };
 
-  const saveEditedTask = (editedTask) => {
+  const saveEditedTask = async (editedTask) => {
+    const originalTask = tasks.find(t => t.id === editedTask.id);
+    
     setTasks(tasks.map(task =>
       task.id === editedTask.id ? editedTask : task
     ));
+    
+    if (notificationPermission && originalTask) {
+      if (originalTask.notificationId) {
+        await NotificationManager.cancelNotification(originalTask.notificationId);
+      }
+      
+      if (editedTask.dueDate && !editedTask.completed) {
+        const notificationId = await NotificationManager.scheduleTaskReminder(editedTask);
+        if (notificationId) {
+          editedTask.notificationId = notificationId;
+          setTasks(tasks.map(task =>
+            task.id === editedTask.id ? {...editedTask, notificationId} : task
+          ));
+        }
+      }
+    }
+    
     setEditModalVisible(false);
     setTaskToEdit(null);
   };
@@ -82,7 +173,18 @@ export default function App() {
         'Are you sure you want to delete all tasks?',
         [
           { text: 'Cancel', style: 'cancel' },
-          { text: 'Clear All', onPress: () => setTasks([]), style: 'destructive' },
+          { 
+            text: 'Clear All', 
+            onPress: async () => {
+              for (const task of tasks) {
+                if (task.notificationId) {
+                  await NotificationManager.cancelNotification(task.notificationId);
+                }
+              }
+              setTasks([]);
+            }, 
+            style: 'destructive' 
+          },
         ],
         { cancelable: true }
       );
@@ -105,60 +207,58 @@ export default function App() {
   );
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <StatusBar style="dark" />
-      <View style={styles.container}>
-        <View style={styles.header}>
-          <View>
-            <Text style={styles.heading}>Today's Slate</Text>
-            <Text style={styles.counter}>
-              {tasks.filter(t => !t.completed).length} tasks remaining
-            </Text>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <SafeAreaView style={styles.safeArea}>
+        <StatusBar style="dark" />
+        <View style={styles.container}>
+          <View style={styles.header}>
+            <View>
+              <Text style={styles.heading}>Today's Slate</Text>
+              <Text style={styles.counter}>
+                {tasks.filter(t => !t.completed).length} tasks remaining
+              </Text>
+            </View>
+            <TouchableOpacity onPress={clearAll}>
+              <MaterialIcons name="delete-sweep" size={28} color={COLORS.gray} />
+            </TouchableOpacity>
           </View>
-          <TouchableOpacity onPress={clearAll}>
-            <MaterialIcons name="delete-sweep" size={28} color={COLORS.gray} />
+
+          {tasks.length === 0 ? (
+            renderEmptyComponent()
+          ) : (
+            <DraggableTaskList
+              tasks={sortedTasks}
+              onToggle={toggleTask}
+              onDelete={deleteTask}
+              onEdit={startEditTask}
+              onReorder={setTasks}
+            />
+          )}
+
+          <TouchableOpacity
+            style={styles.fab}
+            onPress={() => setModalVisible(true)}
+          >
+            <Feather name="plus" size={28} color={COLORS.white} />
           </TouchableOpacity>
         </View>
 
-        <FlatList
-          style={styles.list}
-          data={sortedTasks}
-          keyExtractor={(item) => item.id}
-          renderItem={({ item }) => (
-            <TaskItem
-              task={item}
-              onToggle={() => toggleTask(item.id)}
-              onDelete={() => deleteTask(item.id)}
-              onEdit={() => startEditTask(item)}
-            />
-          )}
-          ListEmptyComponent={renderEmptyComponent}
-          contentContainerStyle={{ flexGrow: 1, paddingBottom: 80 }}
+        <AddTaskModal
+          visible={modalVisible}
+          onClose={() => setModalVisible(false)}
+          onSave={addTask}
         />
 
-        <TouchableOpacity
-          style={styles.fab}
-          onPress={() => setModalVisible(true)}
-        >
-          <Feather name="plus" size={28} color={COLORS.white} />
-        </TouchableOpacity>
-      </View>
-
-      <AddTaskModal
-        visible={modalVisible}
-        onClose={() => setModalVisible(false)}
-        onSave={addTask}
-      />
-
-      {taskToEdit && (
-        <EditTaskModal
-          visible={editModalVisible}
-          onClose={() => setEditModalVisible(false)}
-          onSave={saveEditedTask}
-          task={taskToEdit}
-        />
-      )}
-    </SafeAreaView>
+        {taskToEdit && (
+          <EditTaskModal
+            visible={editModalVisible}
+            onClose={() => setEditModalVisible(false)}
+            onSave={saveEditedTask}
+            task={taskToEdit}
+          />
+        )}
+      </SafeAreaView>
+    </GestureHandlerRootView>
   );
 }
 
