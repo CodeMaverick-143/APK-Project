@@ -7,16 +7,14 @@ import {
   TouchableOpacity,
   Alert,
 } from 'react-native';
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Feather, Ionicons, MaterialIcons } from '@expo/vector-icons';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
-import * as Notifications from 'expo-notifications';
 
 import DraggableTaskList from './components/DraggableTaskList';
 import AddTaskModal from './components/AddTaskModal';
 import EditTaskModal from './components/EditTaskModal';
-import NotificationManager from './utils/NotificationManager';
 import { COLORS } from './constants/Colors';
 import { STORAGE_KEY } from './constants/Storage';
 
@@ -25,9 +23,6 @@ export default function App() {
   const [modalVisible, setModalVisible] = useState(false);
   const [editModalVisible, setEditModalVisible] = useState(false);
   const [taskToEdit, setTaskToEdit] = useState(null);
-  const [notificationPermission, setNotificationPermission] = useState(false);
-  const notificationListener = useRef();
-  const responseListener = useRef();
 
   useEffect(() => {
     const loadTasks = async () => {
@@ -43,33 +38,7 @@ export default function App() {
     loadTasks();
     
 
-    NotificationManager.requestPermissions().then(granted => {
-      setNotificationPermission(granted);
-    });
-    
-
-    notificationListener.current = Notifications.addNotificationReceivedListener(notification => {
-      const taskId = notification.request.content.data.taskId;
-      if (taskId) {
-        console.log('Received notification for task:', taskId);
-      }
-    });
-    
-    responseListener.current = Notifications.addNotificationResponseReceivedListener(response => {
-      const taskId = response.notification.request.content.data.taskId;
-      if (taskId) {
-
-        const task = tasks.find(t => t.id === taskId);
-        if (task) {
-          startEditTask(task);
-        }
-      }
-    });
-    
-    return () => {
-      Notifications.removeNotificationSubscription(notificationListener.current);
-      Notifications.removeNotificationSubscription(responseListener.current);
-    };
+    return () => {};
   }, []);
 
   useEffect(() => {
@@ -86,15 +55,6 @@ export default function App() {
   const addTask = async (task) => {
     setTasks([...tasks, task]);
     setModalVisible(false);
-    
-
-    if (notificationPermission && task.dueDate) {
-      const notificationId = await NotificationManager.scheduleTaskReminder(task);
-      if (notificationId) {
-
-        task.notificationId = notificationId;
-      }
-    }
   };
 
   const toggleTask = async (id) => {

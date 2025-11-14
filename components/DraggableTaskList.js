@@ -119,10 +119,7 @@ const DraggableTaskList = ({
         // Animate to final position
         animatedTaskPositions[currentIndex].value = withTiming(newIndex * TASK_HEIGHT, {}, () => {
           if (currentIndex !== newIndex) {
-            runOnJS(Haptics.notificationAsync)(Haptics.NotificationFeedbackType.Success);
             runOnJS(handleReorder)(currentIndex, newIndex);
-          } else {
-            runOnJS(Haptics.impactAsync)(Haptics.ImpactFeedbackStyle.Light);
           }
         });
         

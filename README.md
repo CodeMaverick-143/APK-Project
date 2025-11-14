@@ -28,25 +28,17 @@ A modern, gesture-driven task management application built with React Native and
   - Long press on task to open edit modal
   - Subtle scale animations for visual feedback
 
-### Notifications
-- Due date reminders
-- Task completion celebrations
-- Priority-based notification styling
-- Notification management based on task status
-
 ## Technical Implementation
 
 ### Libraries Used
 - `react-native-gesture-handler` - For advanced gesture recognition
 - `react-native-reanimated` - For fluid, performant animations
 - `expo-haptics` - For tactile feedback
-- `expo-notifications` - For local notifications
 - `@react-native-async-storage/async-storage` - For data persistence
 
 ### Key Components
 - **TaskItem** - Swipeable task component with animations
 - **DraggableTaskList** - Drag-and-drop enabled task list
-- **NotificationManager** - Handles scheduling and managing notifications
 
 ## Getting Started
 
