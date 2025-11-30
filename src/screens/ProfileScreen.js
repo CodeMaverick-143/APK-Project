@@ -11,6 +11,8 @@ import { useTheme } from '../hooks/useTheme';
 import ScreenWrapper from '../components/ScreenWrapper';
 import { SHADOWS, TYPOGRAPHY, GLASS } from '../constants/Theme';
 
+import CustomAlertModal from '../components/CustomAlertModal';
+
 const { width } = Dimensions.get('window');
 
 const ProfileScreen = ({ navigation }) => {
@@ -24,6 +26,29 @@ const ProfileScreen = ({ navigation }) => {
     const [description, setDescription] = useState(user?.description || '');
     const [profileImage, setProfileImage] = useState(user?.profilePicture || null);
 
+    // Custom Modal State
+    const [modalVisible, setModalVisible] = useState(false);
+    const [modalConfig, setModalConfig] = useState({
+        type: 'info',
+        title: '',
+        message: '',
+        showCancel: false,
+        onConfirm: () => { },
+        confirmText: 'OK'
+    });
+
+    const showAlert = (type, title, message, showCancel = false, onConfirm = null, confirmText = 'OK') => {
+        setModalConfig({
+            type,
+            title,
+            message,
+            showCancel,
+            onConfirm: onConfirm || (() => setModalVisible(false)),
+            confirmText
+        });
+        setModalVisible(true);
+    };
+
     const activeTasks = tasks.filter(t => !t.completed).length;
     const completedTasks = tasks.filter(t => t.completed).length;
 
@@ -36,7 +61,7 @@ const ProfileScreen = ({ navigation }) => {
     const pickImage = async () => {
         const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
         if (status !== 'granted') {
-            Alert.alert('Permission needed', 'Sorry, we need camera roll permissions to make this work!');
+            showAlert('error', 'Permission needed', 'Sorry, we need camera roll permissions to make this work!');
             return;
         }
 
@@ -62,25 +87,22 @@ const ProfileScreen = ({ navigation }) => {
         });
         if (success) {
             setIsEditing(false);
-            Alert.alert('Success', 'Profile updated successfully!');
+            showAlert('success', 'Success', 'Profile updated successfully!');
         }
     };
 
     const handleReset = () => {
-        Alert.alert(
-            "Reset App Data",
-            "Are you sure you want to clear all data? This cannot be undone.",
-            [
-                { text: "Cancel", style: "cancel" },
-                {
-                    text: "Reset",
-                    style: "destructive",
-                    onPress: async () => {
-                        await resetAppData();
-                        logout();
-                    }
-                }
-            ]
+        showAlert(
+            'warning',
+            'Reset App Data',
+            'Are you sure you want to clear all data? This cannot be undone.',
+            true,
+            async () => {
+                setModalVisible(false);
+                await resetAppData();
+                logout();
+            },
+            'Reset'
         );
     };
 
@@ -278,7 +300,17 @@ const ProfileScreen = ({ navigation }) => {
                     </SettingSection>
                 </View>
             </ScrollView>
-        </ScreenWrapper>
+            <CustomAlertModal
+                visible={modalVisible}
+                type={modalConfig.type}
+                title={modalConfig.title}
+                message={modalConfig.message}
+                showCancel={modalConfig.showCancel}
+                onConfirm={modalConfig.onConfirm}
+                confirmText={modalConfig.confirmText}
+                onClose={() => setModalVisible(false)}
+            />
+        </ScreenWrapper >
     );
 };
 
