@@ -23,10 +23,26 @@
       },
       "edgeToEdgeEnabled": true,
       "package": "com.anonymous.Slate",
-      "usesCleartextTraffic": true
+      "usesCleartextTraffic": true,
+      "permissions": [
+        "android.permission.RECORD_AUDIO"
+      ]
     },
     "web": {
       "favicon": "./assets/icon.png"
+    },
+    "plugins": [
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "The app accesses your photos to let you set your profile picture."
+        }
+      ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "26a27bdd-3474-4b26-9652-43b42383bf0e"
+      }
     }
   }
 }

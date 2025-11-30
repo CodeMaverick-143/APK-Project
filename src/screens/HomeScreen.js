@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, Image } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { useTasks } from '../context/TaskContext';
 import { useAuth } from '../context/AuthContext';
@@ -31,7 +31,14 @@ const HomeScreen = ({ navigation }) => {
                 onPress={() => navigation.navigate('Profile')}
                 style={[styles.profileButton, { backgroundColor: colors.surface, borderColor: colors.border }]}
             >
-                <Feather name="user" size={24} color={colors.text} />
+                {user?.profilePicture ? (
+                    <Image
+                        source={{ uri: user.profilePicture }}
+                        style={styles.profileImage}
+                    />
+                ) : (
+                    <Feather name="user" size={24} color={colors.text} />
+                )}
             </TouchableOpacity>
         </View>
     );
@@ -102,6 +109,12 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         alignItems: 'center',
         borderWidth: 1,
+        overflow: 'hidden',
+    },
+    profileImage: {
+        width: '100%',
+        height: '100%',
+        borderRadius: 24,
     },
     fabContainer: {
         position: 'absolute',

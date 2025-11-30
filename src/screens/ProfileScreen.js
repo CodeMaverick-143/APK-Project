@@ -67,7 +67,7 @@ const ProfileScreen = ({ navigation }) => {
             }
 
             let result = await ImagePicker.launchImageLibraryAsync({
-                mediaTypes: ImagePicker.MediaType.Images,
+                mediaTypes: ImagePicker.MediaTypeOptions.Images,
                 allowsEditing: true,
                 aspect: [1, 1],
                 quality: 0.3,
@@ -84,7 +84,7 @@ const ProfileScreen = ({ navigation }) => {
             }
         } catch (error) {
             console.log('Image picker error:', error);
-            showAlert('error', 'Error', 'Failed to pick image.');
+            showAlert('error', 'Error', `Failed to pick image: ${error.message || error}`);
         }
     };
 
