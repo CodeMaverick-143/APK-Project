@@ -59,23 +59,32 @@ const ProfileScreen = ({ navigation }) => {
     }, [user]);
 
     const pickImage = async () => {
-        const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-        if (status !== 'granted') {
-            showAlert('error', 'Permission needed', 'Sorry, we need camera roll permissions to make this work!');
-            return;
-        }
+        try {
+            const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+            if (status !== 'granted') {
+                showAlert('error', 'Permission needed', 'Sorry, we need camera roll permissions to make this work!');
+                return;
+            }
 
-        let result = await ImagePicker.launchImageLibraryAsync({
-            mediaTypes: ImagePicker.MediaType.Images,
-            allowsEditing: true,
-            aspect: [1, 1],
-            quality: 0.5,
-            base64: true,
-        });
+            let result = await ImagePicker.launchImageLibraryAsync({
+                mediaTypes: ImagePicker.MediaType.Images,
+                allowsEditing: true,
+                aspect: [1, 1],
+                quality: 0.3,
+                base64: true,
+            });
 
-        if (!result.canceled) {
-            const base64Img = `data:image/jpeg;base64,${result.assets[0].base64}`;
-            setProfileImage(base64Img);
+            if (!result.canceled) {
+                if (result.assets[0].base64) {
+                    const base64Img = `data:image/jpeg;base64,${result.assets[0].base64}`;
+                    setProfileImage(base64Img);
+                } else {
+                    showAlert('error', 'Error', 'Could not process image. Please try another one.');
+                }
+            }
+        } catch (error) {
+            console.log('Image picker error:', error);
+            showAlert('error', 'Error', 'Failed to pick image.');
         }
     };
 
