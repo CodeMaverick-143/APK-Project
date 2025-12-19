@@ -58,8 +58,6 @@ export const SettingsProvider = ({ children }) => {
     const resetAppData = async () => {
         try {
             await AsyncStorage.clear();
-            // Note: This clears EVERYTHING (tasks, auth, settings). 
-            // In a real app, you might want to be more selective or force a reload.
         } catch (error) {
             console.error("Failed to clear app data", error);
         }
